@@ -16,8 +16,8 @@ const pool = new Pool({
     }
 });
 
-// --- CREAR LA TABLA AUTOMÁTICAMENTE ---
-const crearTabla = `
+// --- CREAR LAS TABLAS AUTOMÁTICAMENTE ---
+const crearTablaUsuarios = `
 CREATE TABLE IF NOT EXISTS usuarios (
     id SERIAL PRIMARY KEY,
     tarjeta_sanitaria VARCHAR(50) UNIQUE NOT NULL,
@@ -26,11 +26,24 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 `;
 
-pool.query(crearTabla)
-    .then(() => console.log('Tabla de usuarios verificada/creada en Postgres'))
-    .catch(err => console.error('Error al crear/verificar la tabla:', err));
+const crearTablaRegistros = `
+CREATE TABLE IF NOT EXISTS registros (
+    id SERIAL PRIMARY KEY,
+    tarjeta_sanitaria VARCHAR(50) NOT NULL,
+    frecuencia_horas INT NOT NULL,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`;
 
+// Ejecutamos ambas creaciones
+pool.query(crearTablaUsuarios)
+    .then(() => console.log('Tabla de usuarios OK'))
+    .catch(err => console.error('Error tabla usuarios:', err));
 
+pool.query(crearTablaRegistros)
+    .then(() => console.log('Tabla de registros (historial) OK'))
+    .catch(err => console.error('Error tabla registros:', err));
+    
 // --- RUTA 1: REGISTRAR USUARIO ---
 app.post('/api/registrar', async (req, res) => {
     const { tarjeta, password } = req.body;
