@@ -35,6 +35,16 @@ CREATE TABLE IF NOT EXISTS registros (
 );
 `;
 
+const crearTablaEmergencias = `
+CREATE TABLE IF NOT EXISTS emergencias (
+    id SERIAL PRIMARY KEY,
+    tarjeta_sanitaria VARCHAR(50) NOT NULL,
+    latitud NUMERIC(10, 7),
+    longitud NUMERIC(10, 7),
+    fecha_emergencia TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 // Ejecutamos ambas creaciones
 pool.query(crearTablaUsuarios)
     .then(() => console.log('Tabla de usuarios OK'))
@@ -43,6 +53,11 @@ pool.query(crearTablaUsuarios)
 pool.query(crearTablaRegistros)
     .then(() => console.log('Tabla de registros (historial) OK'))
     .catch(err => console.error('Error tabla registros:', err));
+
+// Justo debajo de los otros pool.query(...), añade este:
+pool.query(crearTablaEmergencias)
+    .then(() => console.log('Tabla de emergencias OK'))
+    .catch(err => console.error('Error tabla emergencias:', err));    
     
 // --- RUTA 1: REGISTRAR USUARIO ---
 app.post('/api/registrar', async (req, res) => {
@@ -77,6 +92,20 @@ app.post('/api/login', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ mensaje: 'Error en el servidor' });
+    }
+});
+
+// --- RUTA 4: REGISTRAR EMERGENCIA CON UBICACIÓN ---
+app.post('/api/emergencia', async (req, res) => {
+    const { tarjeta, latitud, longitud } = req.body;
+
+    try {
+        const query = 'INSERT INTO emergencias (tarjeta_sanitaria, latitud, longitud) VALUES ($1, $2, $3)';
+        await pool.query(query, [tarjeta, latitud, longitud]);
+        res.status(201).json({ mensaje: 'Emergencia registrada con ubicación exacta' });
+    } catch (err) {
+        console.error("Error guardando emergencia:", err);
+        res.status(500).json({ mensaje: 'Error en el servidor al guardar la emergencia' });
     }
 });
 
