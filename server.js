@@ -109,6 +109,24 @@ app.post('/api/emergencia', async (req, res) => {
     }
 });
 
+// --- RUTA 5: PANEL DE ADMINISTRACIÓN (VER BD) ---
+app.get('/api/admin/datos', async (req, res) => {
+    try {
+        // Obtenemos los últimos 20 registros normales
+        const registros = await pool.query('SELECT * FROM registros ORDER BY fecha_registro DESC LIMIT 20');
+        // Obtenemos las últimas 20 emergencias
+        const emergencias = await pool.query('SELECT * FROM emergencias ORDER BY fecha_emergencia DESC LIMIT 20');
+
+        res.status(200).json({
+            registros: registros.rows,
+            emergencias: emergencias.rows
+        });
+    } catch (err) {
+        console.error("Error al obtener datos de admin:", err);
+        res.status(500).json({ mensaje: 'Error en el servidor al leer la BD' });
+    }
+});
+
 // --- ARRANCAR EL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
