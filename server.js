@@ -95,6 +95,20 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// --- RUTA 3: REGISTRAR CHECK-IN NORMAL ---
+app.post('/api/checkin', async (req, res) => {
+    const { tarjeta, frecuencia } = req.body;
+
+    try {
+        const query = 'INSERT INTO registros (tarjeta_sanitaria, frecuencia_horas) VALUES ($1, $2)';
+        await pool.query(query, [tarjeta, frecuencia]);
+        res.status(201).json({ mensaje: 'Check-in registrado con éxito' });
+    } catch (err) {
+        console.error("Error guardando el check-in:", err);
+        res.status(500).json({ mensaje: 'Error en el servidor al guardar el check-in' });
+    }
+});
+
 // --- RUTA 4: REGISTRAR EMERGENCIA CON UBICACIÓN ---
 app.post('/api/emergencia', async (req, res) => {
     const { tarjeta, latitud, longitud } = req.body;
