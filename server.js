@@ -1,14 +1,12 @@
+// --- IMPORTAR LIBRERÍAS ---
 const express = require('express');
 const { Pool } = require('pg'); 
 const cors = require('cors');
 
 const app = express();
-
-// Configuración de middleware
 app.use(cors());
 app.use(express.json());
 
-// Configuración de base de datos
 const conexionPostgres = 'postgresql://estoybien_db_user:bCBoUP6dbR6pQFfs76vMQW8x1os7YCSe@dpg-d6insn7gi27c738mt30g-a.oregon-postgres.render.com/estoybien_db';
 
 const pool = new Pool({
@@ -18,46 +16,53 @@ const pool = new Pool({
     }
 });
 
-// Inicialización de esquemas de base de datos
-async function inicializarBaseDatos() {
-    const tablas = [
-        `CREATE TABLE IF NOT EXISTS usuarios (
-            id SERIAL PRIMARY KEY,
-            tarjeta_sanitaria VARCHAR(50) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );`,
-        `CREATE TABLE IF NOT EXISTS registros (
-            id SERIAL PRIMARY KEY,
-            tarjeta_sanitaria VARCHAR(50) NOT NULL,
-            frecuencia_horas INT NOT NULL,
-            fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );`,
-        `CREATE TABLE IF NOT EXISTS emergencias (
-            id SERIAL PRIMARY KEY,
-            tarjeta_sanitaria VARCHAR(50) NOT NULL,
-            latitud NUMERIC(10, 7),
-            longitud NUMERIC(10, 7),
-            fecha_emergencia TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );`
-    ];
+// --- CREAR LAS TABLAS AUTOMÁTICAMENTE ---
+const crearTablaUsuarios = `
+CREATE TABLE IF NOT EXISTS usuarios (
+    id SERIAL PRIMARY KEY,
+    tarjeta_sanitaria VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`;
 
-    try {
-        for (let query of tablas) {
-            await pool.query(query);
-        }
-        console.log('Estructura de base de datos verificada/creada correctamente.');
-    } catch (error) {
-        console.error('Error crítico al inicializar la base de datos:', error);
-    }
-}
+const crearTablaRegistros = `
+CREATE TABLE IF NOT EXISTS registros (
+    id SERIAL PRIMARY KEY,
+    tarjeta_sanitaria VARCHAR(50) NOT NULL,
+    frecuencia_horas INT NOT NULL,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`;
 
-inicializarBaseDatos();
+const crearTablaEmergencias = `
+CREATE TABLE IF NOT EXISTS emergencias (
+    id SERIAL PRIMARY KEY,
+    tarjeta_sanitaria VARCHAR(50) NOT NULL,
+    latitud NUMERIC(10, 7),
+    longitud NUMERIC(10, 7),
+    fecha_emergencia TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`;
 
-// Rutas de la API
+// Ejecutamos ambas creaciones
+pool.query(crearTablaUsuarios)
+    .then(() => console.log('Tabla de usuarios OK'))
+    .catch(err => console.error('Error tabla usuarios:', err));
 
+pool.query(crearTablaRegistros)
+    .then(() => console.log('Tabla de registros (historial) OK'))
+    .catch(err => console.error('Error tabla registros:', err));
+
+// Justo debajo de los otros pool.query(...), añade este:
+pool.query(crearTablaEmergencias)
+    .then(() => console.log('Tabla de emergencias OK'))
+    .catch(err => console.error('Error tabla emergencias:', err));    
+    
+// --- RUTA 1: REGISTRAR USUARIO ---
 app.post('/api/registrar', async (req, res) => {
     const { tarjeta, password } = req.body;
+
     try {
         const query = 'INSERT INTO usuarios (tarjeta_sanitaria, password) VALUES ($1, $2)';
         await pool.query(query, [tarjeta, password]);
@@ -66,13 +71,15 @@ app.post('/api/registrar', async (req, res) => {
         if (err.code === '23505') { 
             return res.status(400).json({ mensaje: 'Esta tarjeta ya está registrada' });
         }
-        console.error('Error en registro:', err);
-        res.status(500).json({ mensaje: 'Error interno del servidor' });
+        console.error(err);
+        res.status(500).json({ mensaje: 'Error en el servidor' });
     }
 });
 
+// --- RUTA 2: INICIAR SESIÓN ---
 app.post('/api/login', async (req, res) => {
     const { tarjeta, password } = req.body;
+
     try {
         const query = 'SELECT * FROM usuarios WHERE tarjeta_sanitaria = $1 AND password = $2';
         const result = await pool.query(query, [tarjeta, password]);
@@ -83,38 +90,45 @@ app.post('/api/login', async (req, res) => {
             res.status(401).json({ mensaje: 'Tarjeta o contraseña incorrectas' });
         }
     } catch (err) {
-        console.error('Error en login:', err);
-        res.status(500).json({ mensaje: 'Error interno del servidor' });
+        console.error(err);
+        res.status(500).json({ mensaje: 'Error en el servidor' });
     }
 });
 
+// --- RUTA 3: REGISTRAR CHECK-IN NORMAL ---
 app.post('/api/checkin', async (req, res) => {
     const { tarjeta, frecuencia } = req.body;
+
     try {
         const query = 'INSERT INTO registros (tarjeta_sanitaria, frecuencia_horas) VALUES ($1, $2)';
         await pool.query(query, [tarjeta, frecuencia]);
         res.status(201).json({ mensaje: 'Check-in registrado con éxito' });
     } catch (err) {
-        console.error('Error en checkin:', err);
-        res.status(500).json({ mensaje: 'Error interno del servidor' });
+        console.error("Error guardando el check-in:", err);
+        res.status(500).json({ mensaje: 'Error en el servidor al guardar el check-in' });
     }
 });
 
+// --- RUTA 4: REGISTRAR EMERGENCIA CON UBICACIÓN ---
 app.post('/api/emergencia', async (req, res) => {
     const { tarjeta, latitud, longitud } = req.body;
+
     try {
         const query = 'INSERT INTO emergencias (tarjeta_sanitaria, latitud, longitud) VALUES ($1, $2, $3)';
         await pool.query(query, [tarjeta, latitud, longitud]);
-        res.status(201).json({ mensaje: 'Emergencia registrada' });
+        res.status(201).json({ mensaje: 'Emergencia registrada con ubicación exacta' });
     } catch (err) {
-        console.error('Error en emergencia:', err);
-        res.status(500).json({ mensaje: 'Error interno del servidor' });
+        console.error("Error guardando emergencia:", err);
+        res.status(500).json({ mensaje: 'Error en el servidor al guardar la emergencia' });
     }
 });
 
+// --- RUTA 5: PANEL DE ADMINISTRACIÓN (VER BD) ---
 app.get('/api/admin/datos', async (req, res) => {
     try {
+        // Obtenemos los últimos 20 registros normales
         const registros = await pool.query('SELECT * FROM registros ORDER BY fecha_registro DESC LIMIT 20');
+        // Obtenemos las últimas 20 emergencias
         const emergencias = await pool.query('SELECT * FROM emergencias ORDER BY fecha_emergencia DESC LIMIT 20');
 
         res.status(200).json({
@@ -122,12 +136,13 @@ app.get('/api/admin/datos', async (req, res) => {
             emergencias: emergencias.rows
         });
     } catch (err) {
-        console.error('Error obteniendo datos admin:', err);
-        res.status(500).json({ mensaje: 'Error interno del servidor' });
+        console.error("Error al obtener datos de admin:", err);
+        res.status(500).json({ mensaje: 'Error en el servidor al leer la BD' });
     }
 });
 
+// --- ARRANCAR EL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Servidor en ejecución en el puerto ${PORT}`);
+    console.log(`Servidor Backend corriendo en el puerto ${PORT}`);
 });
